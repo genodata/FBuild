@@ -44,8 +44,6 @@ void ActualLibrarianVisualStudio::Create ()
 
    librarian.DoBeforeLink();
 
-   if (std::filesystem::exists(librarian.Output())) std::filesystem::remove(librarian.Output());
-
    std::filesystem::create_directories(std::filesystem::path(librarian.Output()).remove_filename());
 
    std::string command = "-NOLOGO ";

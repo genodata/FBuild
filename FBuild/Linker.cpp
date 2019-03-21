@@ -69,8 +69,9 @@ void ActualLinkerVisualStudio::Link ()
 
    bool debug = linker.Build() == "Debug";
 
-   std::string command = "-NOLOGO -INCREMENTAL:NO -LARGEADDRESSAWARE -STACK:3000000 ";
+   std::string command = "-NOLOGO -LARGEADDRESSAWARE -STACK:3000000 ";
    if (debug) command += "-DEBUG ";
+   else command += "-INCREMENTAL:NO ";
    if (!Exe(linker.Output())) command += "-DLL ";
    command += "-OUT:\"" + linker.Output() + "\" ";
    if (!linker.ImportLib().empty()) command += "-IMPLIB:\"" + linker.ImportLib() + "\" ";
