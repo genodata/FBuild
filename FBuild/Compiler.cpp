@@ -100,7 +100,7 @@ std::string ActualCompilerVisualStudio::CommandLine ()
 {
    bool debug = compiler.Build() == "Debug";
 
-   std::string command = "-nologo -c -EHa -GF -Gm- -FC -MP1 -FS -Zc:inline -DWIN32 -DWINDOWS -D_SCL_SECURE_NO_WARNINGS -std:c++latest ";
+   std::string command = "-nologo -c -EHsc -GF -FC -MP1 -FS -Zc:inline -GS -DWIN32 -DWINDOWS -std:c++latest ";
    
 
    if (debug) command += "-D_DEBUG ";
@@ -125,10 +125,6 @@ std::string ActualCompilerVisualStudio::CommandLine ()
 
 
    if (debug) command += "-RTC1 ";
-
-
-   if (debug) command += "-GS ";
-   else command += "-GS- ";
 
 
    if (debug) command += "-Zi ";
