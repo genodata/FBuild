@@ -117,6 +117,7 @@ private:
          obj.replace_extension(objectFileExtension_);
 
          if (!std::filesystem::exists(obj)) AddOutOfDate(file.string());
+         else if (!std::filesystem::file_size(obj)) AddOutOfDate(file.string());
          else if (LastWriteTime(obj) < dep.MaxTime()) AddOutOfDate(file.string());
          else if (LastWriteTime(obj) < scriptTime_) AddOutOfDate(file.string());
       }
