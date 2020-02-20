@@ -27,9 +27,9 @@ std::string MemoryMappedFile::ErrorMessage() const
    const auto lastError = ::GetLastError();
 
    std::string result;
-   TCHAR* message{};
+   LPSTR message{};
 
-   const auto count = ::FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, nullptr, lastError, 0, message, 0, nullptr);
+   const auto count = ::FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, nullptr, lastError, 0, reinterpret_cast<LPSTR>(&message), 0, nullptr);
    if (count) {
       result = message;
       LocalFree(message);
