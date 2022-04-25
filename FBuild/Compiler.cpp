@@ -100,7 +100,13 @@ std::string ActualCompilerVisualStudio::CommandLine ()
 {
    bool debug = compiler.Build() == "Debug";
 
-   std::string command = "-nologo -c -EHsc -GF -FC -MP1 -FS -Zc:inline -GS -DWIN32 -DWINDOWS -std:c++latest ";
+   std::string command = "-nologo -c -EHsc -GF -FC -MP1 -FS -Zc:inline -GS -DWIN32 -DWINDOWS ";
+   if (atoi(ToolChain::ToolChain().substr(4, 2).c_str()) >= 17) {
+      command += "-std:c++20 "; 
+   }
+   else {
+      command += "-std:c++latest "; 
+   }
    
 
    if (debug) command += "-D_DEBUG ";

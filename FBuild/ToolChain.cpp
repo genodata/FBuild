@@ -27,7 +27,11 @@ namespace ToolChain {
       std::string version = envVersion;
       toolchain = "MSVC";
 
-      for (char ch : version) if (ch != '.') toolchain += ch;
+      for (char ch : version) {
+         if (ch != '.') {
+            toolchain += ch;
+         }
+      }
    }
 
    void ToolChain(std::string_view newToolchain)
