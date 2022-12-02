@@ -8,6 +8,7 @@
 #pragma once
 
 #include "CppDepends.h"
+#include "LastWriteTime.h"
 
 #include <algorithm>
 #include <string>
@@ -76,11 +77,6 @@ private:
    uint32_t                 numberOfThreads_;
    std::vector<std::string> files_;
    std::vector<std::string> outOfDate_;
-
-   inline uint64_t LastWriteTime (const std::filesystem::path& file)
-   {
-      return std::chrono::duration_cast<std::chrono::seconds>(std::filesystem::last_write_time(file).time_since_epoch()).count();
-   }
 
    bool GetFile (std::filesystem::path& result)
    {

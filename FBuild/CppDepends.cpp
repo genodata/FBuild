@@ -9,6 +9,7 @@
 #include "Parser.h"
 #include "BinaryStream.h"
 #include "MemoryMappedFile.h"
+#include "LastWriteTime.h"
 
 #include <fstream>
 #include <iostream>
@@ -21,34 +22,7 @@
 
 
 
-static std::mutex lastWriteTimeMutex;
-static std::unordered_map<std::string, uint64_t> lastWriteTimeCache;
 static std::string precompiledHeader;
-
-uint64_t LastWriteTime (const std::string& file)
-{
-   std::lock_guard lock(lastWriteTimeMutex);
-
-   auto it = lastWriteTimeCache.find(file);
-   if (it != lastWriteTimeCache.end()) return it->second;
-
-   uint64_t ts = 0;
-   try {
-      const std::filesystem::file_time_type timestamp = std::filesystem::last_write_time(file);
-      ts = std::chrono::duration_cast<std::chrono::seconds>(timestamp.time_since_epoch()).count();
-   }
-   catch (...) { }
-   
-   lastWriteTimeCache[file] = ts;
-
-   return ts;
-}
-
-
-
-
-
-
 static const std::string includeString = "include";
 
 static std::vector<std::filesystem::path>& IncludePaths ()

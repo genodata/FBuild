@@ -133,6 +133,7 @@
     <ClCompile Include="JsMoc.cpp" />
     <ClCompile Include="JsResourceCompiler.cpp" />
     <ClCompile Include="JsUic.cpp" />
+    <ClCompile Include="LastWriteTime.cpp" />
     <ClCompile Include="Librarian.cpp" />
     <ClCompile Include="Linker.cpp" />
     <ClCompile Include="MemoryMappedFile.cpp" />
@@ -162,6 +163,7 @@
     <ClInclude Include="JsMoc.h" />
     <ClInclude Include="JsResourceCompiler.h" />
     <ClInclude Include="JsUic.h" />
+    <ClInclude Include="LastWriteTime.h" />
     <ClInclude Include="Librarian.h" />
     <ClInclude Include="Linker.h" />
     <ClInclude Include="MemoryMappedFile.h" />

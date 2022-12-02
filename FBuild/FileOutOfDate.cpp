@@ -6,18 +6,22 @@
  */
 
 #include "FileOutOfDate.h"
+#include "LastWriteTime.h"
 
 #include <filesystem>
 
 
 bool FileOutOfDate::Go () const
 {
-   if (!std::filesystem::exists(parent)) return true;
-
-   const auto parentTime = std::filesystem::last_write_time(parent);
+   const auto parentTime = LastWriteTime(parent);
+   if (!parentTime) {
+      return true;
+   }
 
    for (size_t i = 0; i < files.size(); ++i) {
-      if (std::filesystem::last_write_time(files[i]) > parentTime) return true;
+      if (LastWriteTime(files[i]) > parentTime) {
+         return true;
+      }
    }
 
    return false;

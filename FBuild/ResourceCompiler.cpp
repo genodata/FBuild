@@ -8,6 +8,7 @@
 #include "ResourceCompiler.h"
 #include "CppDepends.h"
 #include "ToolChain.h"
+#include "LastWriteTime.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -24,12 +25,6 @@ inline std::string Inc(const std::vector<std::string>& includes)
 
    return ret;
 }
-
-inline uint64_t LastWriteTime (const std::filesystem::path& file)
-{
-   return std::chrono::duration_cast<std::chrono::seconds>(std::filesystem::last_write_time(file).time_since_epoch()).count();
-}
-
 
 std::string ResourceCompiler::Outfile (const std::string& infile) const
 {
