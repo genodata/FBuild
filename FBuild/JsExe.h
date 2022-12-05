@@ -22,6 +22,7 @@ class JsExe {
    static duk_ret_t Destructor(duk_context* duktapeContext);
    static duk_ret_t Build(duk_context* duktapeContext);
    static duk_ret_t Files(duk_context* duktapeContext);
+   static duk_ret_t MPSkipFiles(duk_context* duktapeContext);
    static duk_ret_t DependencyCheck(duk_context* duktapeContext);
    static duk_ret_t CRT(duk_context* duktapeContext);
    static duk_ret_t ObjDir(duk_context* duktapeContext);

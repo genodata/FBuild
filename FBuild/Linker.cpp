@@ -70,7 +70,7 @@ void ActualLinkerVisualStudio::Link ()
    bool debug = linker.Build() == "Debug";
 
    std::string command = "-NOLOGO -LARGEADDRESSAWARE -STACK:3000000 ";
-   if (debug) command += "-DEBUG ";
+   if (debug) command += "-DEBUG -DEBUG:FASTLINK ";
    else command += "-INCREMENTAL:NO ";
    if (!Exe(linker.Output())) command += "-DLL ";
    command += "-OUT:\"" + linker.Output() + "\" ";

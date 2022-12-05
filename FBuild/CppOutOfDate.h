@@ -24,7 +24,6 @@ public:
    CppOutOfDate (const std::string& objectFileExtension) : objectFileExtension_{"." + objectFileExtension}
    {
       current_ = 0;
-      ignoreCache_ = false;
       numberOfThreads_ = 0;
       scriptTime_ = LastWriteTime("FBuild.js");
       files_.reserve(1000);
@@ -34,7 +33,6 @@ public:
    }
 
    void OutDir (std::string v)                      { outdir_ = std::move(v); }
-   void IgnoreCache (bool v)                        { ignoreCache_ = v; }
    void Threads (uint32_t v)                        { numberOfThreads_ = v; }
    void AddIncludePath (const std::string& path)    { CppDepends::AddIncludePath(path); }
    void Files (std::vector<std::string>&& v)        { files_ = std::move(v); }
@@ -107,7 +105,7 @@ private:
 
       for (;;) {
          if (!GetFile(file)) break;
-         CppDepends dep(file, ignoreCache_);
+         CppDepends dep(file);
 
          auto obj = objdir / file.filename();
          obj.replace_extension(objectFileExtension_);

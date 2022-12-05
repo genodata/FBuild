@@ -14,7 +14,7 @@
 
 namespace JavaScriptHelper {
 
-   inline void Throw(duk_context* duktapeContext, std::string_view what)
+   [[noreturn]] inline void Throw(duk_context* duktapeContext, std::string_view what)
    {
       duk_push_error_object(duktapeContext, DUK_ERR_ERROR, what.data());
       duk_throw(duktapeContext);

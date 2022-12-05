@@ -30,6 +30,9 @@ duk_ret_t JsExe::Constructor(duk_context* duktapeContext)
       duk_push_c_function(duktapeContext, JsExe::Files, DUK_VARARGS);
       duk_put_prop_string(duktapeContext, -2, "Files");
 
+      duk_push_c_function(duktapeContext, JsExe::MPSkipFiles, DUK_VARARGS);
+      duk_put_prop_string(duktapeContext, -2, "MPSkipFiles");
+
       duk_push_c_function(duktapeContext, JsExe::DependencyCheck, DUK_VARARGS);
       duk_put_prop_string(duktapeContext, -2, "DependencyCheck");
 
@@ -145,6 +148,25 @@ duk_ret_t JsExe::Files(duk_context* duktapeContext)
       JavaScriptHelper::Throw(duktapeContext, e.what());
    }
 }
+
+duk_ret_t JsExe::MPSkipFiles(duk_context* duktapeContext)
+{
+   try {
+      int args = duk_get_top(duktapeContext);
+
+      duk_push_this(duktapeContext);
+      auto obj = JavaScriptHelper::CppObject<JsExe>(duktapeContext);
+
+      if (!args) JavaScriptHelper::PushArray(duktapeContext, obj->compiler.MPSkipFiles());
+      else obj->compiler.MPSkipFiles(JavaScriptHelper::AsStringVector(duktapeContext, args));
+
+      return 1;
+   }
+   catch (std::exception& e) {
+      JavaScriptHelper::Throw(duktapeContext, e.what());
+   }
+}
+
 
 duk_ret_t JsExe::DependencyCheck(duk_context* duktapeContext)
 {

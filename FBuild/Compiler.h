@@ -45,6 +45,7 @@ public:
 
 class ActualCompilerVisualStudio : public ActualCompiler {
    void CheckParams ();
+   void UpdateOutOfDate();
    bool NeedsRebuild ();
    void DeleteOutOfDateObjectFiles ();
    void CompilePrecompiledHeaders ();
@@ -95,6 +96,7 @@ class Compiler {
    std::vector<std::string> includes;
    std::vector<std::string> defines;
    std::vector<std::string> allFiles;
+   std::vector<std::string> mpskipFiles;
    bool                     crtStatic;
    int                      threads;
    std::string              args;
@@ -108,7 +110,7 @@ class Compiler {
 
 public:
    Compiler () : actualCompiler{new ActualCompiler{*this}}, threads{0}, debug{false}, crtStatic{false}, dependencyCheck{true}, warnLevel{1}, warningAsError{false} { }
-   ~ Compiler () { }
+   ~Compiler() = default;
 
    void Build (std::string build) 
    {
@@ -128,6 +130,7 @@ public:
    void Includes (std::vector<std::string> v)              { includes = std::move(v); }
    void Defines (std::vector<std::string> v)               { defines = std::move(v); }
    void Files (std::vector<std::string> v)                 { allFiles = std::move(v); }
+   void MPSkipFiles(std::vector<std::string> v)            { mpskipFiles = std::move(v); }
    void Threads (int v)                                    { threads = v; }
    void Args (std::string v)                               { args = std::move(v); }
    void PrecompiledHeader (std::string h, std::string cpp) { precompiledHeader = std::move(h); precompiledCpp = std::move(cpp); }
@@ -143,6 +146,7 @@ public:
    const std::vector<std::string>& Includes () const          { return includes; }
    const std::vector<std::string>& Defines () const           { return defines; }
    const std::vector<std::string>& Files () const             { return allFiles; }
+   const std::vector<std::string>& MPSkipFiles() const        { return mpskipFiles; }
    int                             Threads () const           { return threads; }
    const std::string&              Args () const              { return args; }
    std::string                     PrecompiledHeader () const { return precompiledHeader.empty() ? "" : precompiledHeader + "; " + precompiledCpp; }

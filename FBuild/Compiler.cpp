@@ -16,8 +16,9 @@
 #include <thread>
 #include <mutex>
 #include <filesystem>
-
-
+#include <sstream>
+#include <atomic>
+#include <random>
 
 
 
@@ -66,6 +67,19 @@ void ActualCompilerVisualStudio::CheckParams ()
    if (compiler.ObjDir().empty()) compiler.ObjDir(compiler.Build());
 }
 
+void ActualCompilerVisualStudio::UpdateOutOfDate () 
+{
+   ::CppOutOfDate checker{ "obj" };
+   checker.OutDir(compiler.ObjDir());
+   checker.Threads(compiler.Threads());
+   checker.Files(compiler.Files());
+   checker.Include(compiler.Includes());
+   checker.PrecompiledHeader(compiler.PrecompiledH());
+   checker.Go();
+
+   outOfDate = checker.OutOfDate();
+}
+
 bool ActualCompilerVisualStudio::NeedsRebuild ()
 {
    CheckParams();
@@ -75,15 +89,7 @@ bool ActualCompilerVisualStudio::NeedsRebuild ()
       outOfDate = compiler.Files();
    }
    else {
-      ::CppOutOfDate checker{"obj"};
-      checker.OutDir(compiler.ObjDir());
-      checker.Threads(compiler.Threads());
-      checker.Files(compiler.Files());
-      checker.Include(compiler.Includes());
-      checker.PrecompiledHeader(compiler.PrecompiledH());
-      checker.Go();
-
-      outOfDate = checker.OutOfDate();
+      UpdateOutOfDate();
    }
 
    return !outOfDate.empty();
@@ -93,14 +99,16 @@ void ActualCompilerVisualStudio::DeleteOutOfDateObjectFiles ()
 {
    const auto files = CompiledObjFiles();
 
-   for (auto&& file : files) std::filesystem::remove(file);
+   for (auto&& file : files) {
+      std::filesystem::remove(file);
+   }
 }
 
 std::string ActualCompilerVisualStudio::CommandLine ()
 {
    bool debug = compiler.Build() == "Debug";
 
-   std::string command = "-nologo -c -EHsc -GF -FC -MP1 -FS -Zc:inline -GS -DWIN32 -DWINDOWS ";
+   std::string command = "-nologo -c -EHsc -GF -FC -FS -Zc:inline -GS -DWIN32 -DWINDOWS ";
    if (atoi(ToolChain::ToolChain().substr(4, 2).c_str()) >= 17) {
       command += "-std:c++20 "; 
    }
@@ -200,9 +208,90 @@ void ActualCompilerVisualStudio::CompilePrecompiledHeaders ()
    if (rc != 0) throw std::runtime_error("Compile Error");
 }
 
+
+class CLMPWorker {
+private:
+   std::filesystem::path objdir_;
+   std::string cmdprefix_;
+   std::vector<std::string> source_;
+   bool failed_{ false };
+   uint64_t starttime_{0};
+
+public:
+   CLMPWorker(std::string cmdprefix, std::filesystem::path objdir, std::vector<std::string> source)
+      : cmdprefix_(std::move(cmdprefix))
+      , objdir_(std::move(objdir))
+      , source_(std::move(source))
+      , starttime_(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count())
+   {
+   }
+
+   void Wait()
+   {
+      failed_ = false;
+      const auto path = [&] {
+         std::stringstream ss;
+         ss << "FBuild_CLMPWorker_" << std::this_thread::get_id() << ".rsp";
+         return objdir_ / std::filesystem::path(ss.str());
+      } ();
+
+      try {
+         {
+            std::ofstream message(path, std::ios::trunc);
+            for (const auto& src : source_) {
+               message << src << " ";
+            }
+         }
+
+         const auto cmd = cmdprefix_ + " @" + path.string();
+         const int rc = std::system(cmd.c_str());
+         if (rc != 0) {
+            //std::cerr << "Irgendwas ging schief retry... \n";
+            failed_ = true;
+         }
+      }
+      catch (std::exception& e) {
+         std::cerr << e.what() << std::endl;
+         failed_ = true;
+      }
+      catch (...) {
+         failed_ = true;
+      }
+
+      std::error_code nothrow;
+      std::filesystem::remove(path, nothrow);
+   }
+
+   void UpdateSourceFiles () 
+   {
+      source_.erase(std::remove_if(source_.begin(), source_.end(), [&](const auto& cppfile) {
+         const auto check = objdir_ / std::filesystem::path(cppfile).filename().replace_extension(".obj");
+         return std::filesystem::exists(check) && LastWriteTime(check) >= starttime_;
+      }), source_.end());
+
+      static std::random_device rd;
+      static std::mt19937 g(rd());
+      std::shuffle(source_.begin(), source_.end(), g);
+   }
+
+   bool IsFailed () const
+   {
+      return failed_;
+   }
+
+   const std::vector<std::string>& GetSourceFiles () const 
+   {
+      return source_;
+   }
+};
+
+
+
 void ActualCompilerVisualStudio::CompileFiles ()
 {
-   if (outOfDate.empty()) return;
+   if (outOfDate.empty()) {
+      return;
+   }
 
    std::string commandLine = CommandLine();
 
@@ -211,9 +300,52 @@ void ActualCompilerVisualStudio::CompileFiles ()
       commandLine += "-Yu\"" + compiler.PrecompiledH() + "\" ";
    }
 
-   std::vector<std::string> todo = outOfDate;
-   size_t errors = 0;
-   std::mutex mutex{};
+   const auto threads = std::clamp(compiler.Threads(), std::max(static_cast<int>(std::thread::hardware_concurrency()), 2), static_cast<int>(outOfDate.size()));
+
+   std::vector<std::string> skipped;
+   bool failed = false;
+
+   if (!compiler.MPSkipFiles().empty()) {
+      auto mpskip = compiler.MPSkipFiles();
+      const auto it = std::stable_partition(outOfDate.begin(), outOfDate.end(), [&mpskip](const auto& what) {
+         const auto it = std::find(mpskip.begin(), mpskip.end(), what);
+         if (it != mpskip.end()) {
+            mpskip.erase(it);
+            return false;
+         }
+         return true;
+      });
+      skipped.insert(skipped.end(), it, outOfDate.end());
+      outOfDate.erase(it, outOfDate.end());
+   }
+
+   {
+      const auto cmdprefix = ToolChain::SetEnvBatchCall() + " & CL " + commandLine + " -MP" + std::to_string(threads) + " ";
+      auto worker = CLMPWorker{cmdprefix, compiler.ObjDir(), outOfDate};
+      worker.Wait();
+
+      if (worker.IsFailed()) {
+         worker.UpdateSourceFiles();
+         const auto& files = worker.GetSourceFiles();
+         skipped.insert(skipped.end(), files.begin(), files.end());
+         failed = true;
+      }
+   }
+
+   if (skipped.empty()) {
+      return;
+   }
+
+   if (failed) {
+      // Workaround für Features die nicht mit Multithreading (`-MP` > 1) kompatibel sind
+      std::cerr << "\n"
+         << "fehlgeschlagene werden einzeln wiederholt...\n"
+         << "Wenn diese hier funktionieren sollten diese (um false-positive Meldungen zu unterbinden) durch `worker.MPSkipFiles(['source.cpp'])` deklariert werden!\n"
+         << "\n\n" << std::endl;
+   }
+
+   std::mutex mutex;
+   std::atomic<int> errors;
 
    auto threadFunction = [&] () {
       std::string cpp;
@@ -223,13 +355,13 @@ void ActualCompilerVisualStudio::CompileFiles ()
          try {
             {
                std::lock_guard<std::mutex> lock{mutex};
-               auto it = todo.rbegin();
-               if (it == todo.rend()) break;
+               auto it = skipped.rbegin();
+               if (it == skipped.rend()) break;
                cpp = (*it);
-               todo.pop_back();
+               skipped.pop_back();
             }
 
-            command = "cl.exe " + commandLine + "\"" + cpp + "\" ";
+            command = "CL " + commandLine + " -MP1 \"" + cpp + "\" ";
 
             std::string cmd = ToolChain::SetEnvBatchCall() + " & " + command;
             int rc = std::system(cmd.c_str());
@@ -250,19 +382,18 @@ void ActualCompilerVisualStudio::CompileFiles ()
       }
    };
 
-   size_t threads = compiler.Threads();
-   if (!threads) {
-      threads = std::thread::hardware_concurrency();
-      if (!threads) threads = 2;
-   }
-   if (threads > todo.size()) threads = todo.size();
-
    std::vector<std::thread> threadGroup;
-   for (size_t i = 0; i < threads; ++i) threadGroup.push_back(std::thread{threadFunction});
+   for (int i = 0; i < threads; ++i) {
+      threadGroup.push_back(std::thread{ threadFunction });
+   }
 
-   for (auto&& thread : threadGroup) thread.join();
+   for (auto&& thread : threadGroup) {
+      thread.join();
+   }
 
-   if (errors) throw std::runtime_error("Compile Error");
+   if (errors) {
+      throw std::runtime_error("Compile Error");
+   }
 }
 
 void ActualCompilerVisualStudio::Compile ()
@@ -285,202 +416,10 @@ void ActualCompilerVisualStudio::Compile ()
 
 
 
-void ActualCompilerEmscripten::CheckParams ()
-{
-   if (compiler.ObjDir().empty()) compiler.ObjDir(compiler.Build());
-   if (!std::filesystem::exists(compiler.ObjDir())) std::filesystem::create_directories(compiler.ObjDir());
-}
-
-bool ActualCompilerEmscripten::NeedsRebuild ()
-{
-   CheckParams();
-   outOfDate.clear();
-
-   if (!compiler.DependencyCheck()) {
-      outOfDate = compiler.Files();
-   }
-   else {
-      ::CppOutOfDate checker{"o"};
-      checker.OutDir(compiler.ObjDir());
-      checker.Threads(compiler.Threads());
-      checker.Files(compiler.Files());
-      checker.Include(compiler.Includes());
-      checker.PrecompiledHeader(compiler.PrecompiledH());
-      checker.Go();
-
-      outOfDate = checker.OutOfDate();
-   }
-
-   return !outOfDate.empty();
-}
-
-void ActualCompilerEmscripten::DeleteOutOfDateObjectFiles ()
-{
-   const auto files = CompiledObjFiles();
-
-   for (auto&& file : files) std::filesystem::remove(file);
-}
-
-void ActualCompilerEmscripten::CompilePrecompiledHeaders ()
-{
-   if (outOfDate.empty()) return;
-   if (compiler.PrecompiledCPP().empty()) return;
-
-   std::filesystem::path cpp = std::filesystem::canonical(compiler.PrecompiledCPP());
-   cpp.make_preferred();
-
-   auto it = std::find_if(outOfDate.cbegin(), outOfDate.cend(), [&cpp] (const std::string& f) -> bool {
-      return std::filesystem::equivalent(cpp, f);
-   });
-
-   if (it == outOfDate.cend()) return;
-
-   outOfDate.erase(it);
-
-   std::filesystem::path hpp = std::filesystem::canonical(compiler.PrecompiledH());
-   hpp.make_preferred();
-
-   std::cout << hpp.string() << std::endl;
-
-   std::string command = "emcc " + CommandLine(true) + "\"" + hpp.string() + "\" -x c++-header -o \"" + hpp.string() + ".pch\" ";
-
-   int rc = std::system(command.c_str());
-   if (rc != 0) throw std::runtime_error("Compile Error");
-
-   std::ofstream obj(compiler.ObjDir() + "/" + cpp.filename().replace_extension("o").string());
-}
-
-void ActualCompilerEmscripten::CompileFiles ()
-{
-   if (outOfDate.empty()) return;
-
-   std::string commandLine = CommandLine(false);
-   if (compiler.PrecompiledH().size()) {
-      std::filesystem::path hpp = std::filesystem::canonical(compiler.PrecompiledH());
-      hpp.make_preferred();
-
-      commandLine += " -include \"" + hpp.string() + "\" ";
-   }
-
-   std::vector<std::string> todo = outOfDate;
-   size_t errors = 0;
-   std::mutex mutex{};
-
-   auto threadFunction = [&] () {
-      std::string cpp;
-      std::string command;
-
-      for (;;) {
-         try {
-            {
-               std::lock_guard<std::mutex> lock{mutex};
-               auto it = todo.rbegin();
-               if (it == todo.rend()) break;
-               cpp = (*it);
-               todo.pop_back();
-
-               std::cout << cpp << std::endl;
-            }
-
-            command = "emcc " + commandLine + "\"" + cpp + "\" ";
-
-            int rc = std::system(command.c_str());
-            if (rc != 0) {
-               std::lock_guard<std::mutex> lock{mutex};
-               ++errors;
-            }
-         }
-         catch (std::exception& e) {
-            std::cout << e.what() << std::endl;
-            std::lock_guard<std::mutex> lock{mutex};
-            ++errors;
-         }
-         catch (...) {
-            std::lock_guard<std::mutex> lock{mutex};
-            ++errors;
-         }
-      }
-   };
-
-   size_t threads = compiler.Threads();
-   if (!threads) {
-      threads = std::thread::hardware_concurrency();
-      if (!threads) threads = 2;
-   }
-   if (threads > todo.size()) threads = todo.size();
-
-   std::vector<std::thread> threadGroup;
-   for (size_t i = 0; i < threads; ++i) threadGroup.push_back(std::thread{threadFunction});
-
-   for (auto&& thread : threadGroup) thread.join();
-
-   if (errors) throw std::runtime_error("Compile Error");
-}
-
-std::string ActualCompilerEmscripten::CommandLine (bool omitObjDir)
-{
-   bool debug = compiler.Build() == "Debug";
-
-   std::string command = "-c -s DISABLE_EXCEPTION_CATCHING=0 -s ALLOW_MEMORY_GROWTH=1 --memory-init-file 0 -std=c++1z ";
-
-   command += "-fdiagnostics-format=msvc -Wno-invalid-source-encoding ";
-
-   if (debug) command += "-g -O1 -D_DEBUG ";
-   else command += "-O3 -DNDEBUG ";
-
-
-   for (auto&& define : compiler.Defines()) command += "-D" + define + " ";
-
-
-   for (auto&& include : compiler.Includes()) command += "-I\"" + include + "\" ";
-
-
-   if (compiler.WarnLevel() == 0) command += "-w ";
-   else if (compiler.WarnLevel() == 4) {
-      if (compiler.WarningAsError()) command += "-pedantic-errors ";
-      else command += "-pedantic ";
-   }
-
-   if (compiler.WarningAsError()) command += "-Werror ";
-
-   for (auto&& disabledWarning : compiler.WarningDisable()) command += "-Wno-" + std::to_string(disabledWarning) + " ";
-
-
-   command += compiler.Args() + " ";
-
-
-   if (!omitObjDir) command += "-o " + compiler.ObjDir() + "/ ";
-
-
-   return command;
-}
-
-void ActualCompilerEmscripten::Compile ()
-{
-   CheckParams();
-   if (!NeedsRebuild()) return;
-
-   std::cout << "\nCompiling (" << ToolChain::ToolChain() << ")" << std::endl;
-
-   compiler.DoBeforeCompile();
-
-   DeleteOutOfDateObjectFiles();
-   CompilePrecompiledHeaders();
-   CompileFiles();
-}
-
-
-
-
-
-
-
-
 void Compiler::Compile ()
 {
    const auto toolChain = ToolChain::ToolChain();
    if (toolChain.substr(0, 4) == "MSVC") actualCompiler.reset(new ActualCompilerVisualStudio{*this});
-   else if (toolChain == "EMSCRIPTEN") actualCompiler.reset(new ActualCompilerEmscripten{*this});
    else throw std::runtime_error("Unbekannte Toolchain: " + toolChain);
 
    actualCompiler->Compile();

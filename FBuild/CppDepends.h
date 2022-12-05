@@ -16,7 +16,7 @@
 
 class CppDepends {
 public:
-   CppDepends (const std::filesystem::path& file, bool ignoreCache = false);
+   CppDepends (const std::filesystem::path& file);
 
    typedef std::unordered_set<std::string>::const_iterator Iterator;
 

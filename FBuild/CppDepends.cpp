@@ -35,14 +35,14 @@ static std::vector<std::filesystem::path>& IncludePaths ()
 
 
 
-CppDepends::CppDepends (const std::filesystem::path& file, bool ignoreCache)
+CppDepends::CppDepends (const std::filesystem::path& file)
 {
    maxTime = 0;
 
    std::filesystem::path f = std::filesystem::canonical(file);
    f.make_preferred();
 
-   if (!ignoreCache && CheckCache(f)) return;
+   if (CheckCache(f)) return;
 
    dependencies.clear();
 

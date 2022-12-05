@@ -8,3 +8,4 @@ ipch
 *.opensdf
 *.exe
 *.db
+/FBuild/vc140.pdb
