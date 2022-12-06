@@ -239,7 +239,7 @@ public:
          {
             std::ofstream message(path, std::ios::trunc);
             for (const auto& src : source_) {
-               message << src << " ";
+               message << "\"" << src << "\" ";
             }
          }
 
