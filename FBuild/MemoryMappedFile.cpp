@@ -48,7 +48,7 @@ void MemoryMappedFile::OpenFile()
    DWORD share = FILE_SHARE_READ | FILE_SHARE_WRITE;
    DWORD open = mode_ == Mode::ReadOnly ? OPEN_EXISTING : OPEN_ALWAYS;
 
-   void* handle = ::CreateFile(file_.string().c_str(), access, share, NULL, open, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_RANDOM_ACCESS, NULL);
+   void* handle = ::CreateFile(file_.string().c_str(), access, share, NULL, open, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
    if (handle == INVALID_HANDLE_VALUE) throw std::runtime_error{"Error opening file " + file_.string() + "\n" + ErrorMessage()};
    fileHandle_.reset(handle, ::CloseHandle);
 }

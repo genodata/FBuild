@@ -81,22 +81,20 @@ class Cache {
       catch (...) {
       }
 
-      // std::cout << file << ": " << result << "\n";
-
       return result;
    }
 
-   std::pair<bool, PersistentValue> IsValid (const std::filesystem::path& file, const PersistentValue& stored) 
+   void UpdateCache (const std::filesystem::path& file, PersistentValue& stored) 
    {
       const auto ctime = QueryFileTime(file);
-      if (ctime != stored.ts) {
+      if (ctime > stored.ts) {
          auto hash = QueryFileHash(file);
          if (stored.hash != hash) {
-            return std::make_pair(false, PersistentValue{ctime, std::move(hash)});
+            stored.hash = std::move(hash);
          }
+         stored.ts = ctime;
+         persistentChanged_ = true;
       }
-
-      return std::make_pair(true, stored);
    }
 
    static bool Skip (std::string extension) 
@@ -125,11 +123,7 @@ class Cache {
          const auto it = persistentCache_.find(normalized);
 
          if (it != end(persistentCache_)) {
-            if (auto hint = IsValid(normalized, it->second); !hint.first) {
-               it->second.ts = hint.second.ts;
-               it->second.hash = std::move(hint.second.hash);
-            }
-
+            UpdateCache(normalized, it->second);
             return it->second.ts;
          }
 

@@ -56,8 +56,9 @@ void CppDepends::DoFile (std::filesystem::path file)
 {
    file.make_preferred();
 
-   if (dependencies.find(file.string()) != dependencies.end()) return;
-   dependencies.insert(file.string());
+   if (!dependencies.insert(file.string()).second) {
+      return;
+   }
 
    const auto todo = Includes(file);
 
@@ -134,8 +135,10 @@ std::vector<std::pair<char, std::string>> CppDepends::Includes (const std::files
       it = std::find(it, end, '#');
    }
 
-   std::lock_guard lock(includesMutex);
-   includesCache[file.string()] = includes;
+   {
+      std::lock_guard lock(includesMutex);
+      includesCache.insert(std::make_pair(file.string(), includes));
+   }
 
    return std::move(includes);
 }
