@@ -246,7 +246,6 @@ public:
          const auto cmd = cmdprefix_ + " @" + path.string();
          const int rc = std::system(cmd.c_str());
          if (rc != 0) {
-            //std::cerr << "Irgendwas ging schief retry... \n";
             failed_ = true;
          }
       }
@@ -336,13 +335,7 @@ void ActualCompilerVisualStudio::CompileFiles ()
       return;
    }
 
-   if (failed) {
-      // Workaround für Features die nicht mit Multithreading (`-MP` > 1) kompatibel sind
-      std::cerr << "\n"
-         << "fehlgeschlagene werden einzeln wiederholt...\n"
-         << "Wenn diese hier funktionieren sollten diese (um false-positive Meldungen zu unterbinden) durch `worker.MPSkipFiles(['source.cpp'])` deklariert werden!\n"
-         << "\n\n" << std::endl;
-   }
+   std::cout << std::endl;
 
    std::mutex mutex;
    std::atomic<int> errors;
@@ -393,6 +386,14 @@ void ActualCompilerVisualStudio::CompileFiles ()
 
    if (errors) {
       throw std::runtime_error("Compile Error");
+   }
+
+   if (failed) {
+      // Workaround für Features die nicht mit Multithreading (`-MP` > 1) kompatibel sind
+      std::cerr << "\n"
+         << "Workaround fuer Features die nicht mit Multithreading (`-MP` > 1) kompatibel sind aktiviert!\n"
+         << "Um zukuenftige Fehler zu vermeiden die zuvor fehlgeschlagenen Quellcode Dateien in FBuild *zusätzlich* mittels `MPSkipFiles(Glob('file.cpp'))` übergeben.\n"
+         << "\n\n" << std::endl;
    }
 }
 
