@@ -22,7 +22,7 @@
 
 
 
-static std::string precompiledHeader;
+static std::filesystem::path precompiledHeader;
 static const std::string includeString = "include";
 
 static std::vector<std::filesystem::path>& IncludePaths ()
@@ -35,21 +35,32 @@ static std::vector<std::filesystem::path>& IncludePaths ()
 
 
 
-CppDepends::CppDepends (const std::filesystem::path& file)
+CppDepends::CppDepends (std::filesystem::path file)
+{
+   Process(std::move(file));
+}
+
+uint64_t CppDepends::Process (std::filesystem::path file)
 {
    maxTime = 0;
 
-   std::filesystem::path f = std::filesystem::canonical(file);
-   f.make_preferred();
+   file = std::filesystem::canonical(file);
+   file.make_preferred();
 
-   if (CheckCache(f)) return;
+   if (CheckCache(file)) {
+      return maxTime;
+   }
 
    dependencies.clear();
 
-   if (precompiledHeader.size()) DoFile(std::filesystem::canonical(precompiledHeader));
-   DoFile(f);
+   if (!precompiledHeader.empty()) {
+      DoFile(precompiledHeader);
+   }
 
-   WriteCache(f);
+   DoFile(file);
+   WriteCache(file);
+
+   return maxTime;
 }
 
 void CppDepends::DoFile (std::filesystem::path file)
@@ -61,7 +72,6 @@ void CppDepends::DoFile (std::filesystem::path file)
    }
 
    const auto todo = Includes(file);
-
    const auto parentPath = file.parent_path();
 
    std::for_each(todo.cbegin(), todo.cend(), [&] (const std::pair<char, std::string>& v) {
@@ -74,8 +84,12 @@ void CppDepends::IncludeQuoted (const std::filesystem::path& path, const std::fi
 {
    std::filesystem::path include = path / file;
 
-   if (std::filesystem::exists(include) && std::filesystem::is_regular_file(include)) DoFile(include);
-   else IncludeAnglebracketed(path, file);
+   if (std::filesystem::exists(include) && std::filesystem::is_regular_file(include)) {
+      DoFile(std::move(include));
+   }
+   else {
+      IncludeAnglebracketed(path, file);
+   }
 }
 
 void CppDepends::IncludeAnglebracketed (const std::filesystem::path& path, const std::filesystem::path& file)
@@ -84,14 +98,16 @@ void CppDepends::IncludeAnglebracketed (const std::filesystem::path& path, const
    for (size_t i = 0; i < includes.size(); ++i) {
       std::filesystem::path include = includes[i] / file;
       if (std::filesystem::exists(include) && std::filesystem::is_regular_file(include)) {
-         DoFile(include);
+         DoFile(std::move(include));
          return;
       }
    }
 
    std::filesystem::path include = path / file;
 
-   if (std::filesystem::exists(include) && std::filesystem::is_regular_file(include)) DoFile(include);
+   if (std::filesystem::exists(include) && std::filesystem::is_regular_file(include)) {
+      DoFile(std::move(include));
+   }
 }
 
 
@@ -140,7 +156,7 @@ std::vector<std::pair<char, std::string>> CppDepends::Includes (const std::files
       includesCache.insert(std::make_pair(file.string(), includes));
    }
 
-   return std::move(includes);
+   return includes;
 }
 
 bool CppDepends::CheckCache (const std::filesystem::path& file)
@@ -162,7 +178,9 @@ bool CppDepends::CheckCache (const std::filesystem::path& file)
       stream > tmp > ts;
       if (LastWriteTime(tmp) != ts) return false;
       dependencies.insert(tmp);
-      if (ts > maxTime) maxTime = ts;
+      if (ts > maxTime) {
+         maxTime = ts;
+      }
    }
 
    return true;
@@ -219,5 +237,5 @@ void CppDepends::AddIncludePath (const std::filesystem::path& path)
 
 void CppDepends::PrecompiledHeader (const std::string& prec)
 {
-   precompiledHeader = prec;
+   precompiledHeader = std::filesystem::canonical(prec).make_preferred();
 }

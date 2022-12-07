@@ -16,7 +16,10 @@
 
 class CppDepends {
 public:
-   CppDepends (const std::filesystem::path& file);
+   explicit CppDepends (std::filesystem::path file);
+
+   CppDepends() = default;
+   uint64_t Process (std::filesystem::path file);
 
    typedef std::unordered_set<std::string>::const_iterator Iterator;
 

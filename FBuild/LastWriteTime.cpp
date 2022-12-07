@@ -108,7 +108,8 @@ class Cache {
          && extension != ".hpp"
          && extension != ".cpp" 
          && extension != ".cxx"
-         && extension != ".rc";
+         && extension != ".rc"
+         && extension != ".js";
    }
 
    uint64_t QueryPersistent (const std::filesystem::path& file) 

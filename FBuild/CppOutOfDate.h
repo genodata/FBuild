@@ -21,10 +21,9 @@
 
 class CppOutOfDate {
 public:
-   CppOutOfDate (const std::string& objectFileExtension) : objectFileExtension_{"." + objectFileExtension}
+   CppOutOfDate (const std::string& objectFileExtension) 
+      : objectFileExtension_{"." + objectFileExtension}
    {
-      current_ = 0;
-      numberOfThreads_ = 0;
       scriptTime_ = LastWriteTime("FBuild.js");
       files_.reserve(1000);
 
@@ -42,7 +41,9 @@ public:
 
    void Go ()
    {
-      if (outdir_.empty()) throw std::runtime_error("Missing 'Outdir'");
+      if (outdir_.empty()) {
+         throw std::runtime_error("Missing 'Outdir'");
+      }
 
       uint32_t cpus = std::thread::hardware_concurrency();
       if (!cpus) cpus = 2;
@@ -52,43 +53,38 @@ public:
          threadGroup_.emplace_back(std::thread([this] () { Thread(); }));
       }
 
-      for (;;) {
-         if (Done()) break;
-         std::this_thread::yield();
+      for (auto& thread : threadGroup_) {
+         thread.join();
       }
-
-      for (auto&& thread : threadGroup_) thread.join();
    }
 
    const std::vector<std::string>& OutOfDate () const { return outOfDate_; }
 
 private:
    std::vector<std::thread> threadGroup_;
-   std::mutex               filesMutex_;
    std::mutex               outOfDateMutex_;
-   size_t                   current_;
-   uint64_t                 scriptTime_;
+   std::atomic<size_t>      current_{0};
+   uint64_t                 scriptTime_{0};
    std::string              objectFileExtension_;
 
    std::string              outdir_;
-   bool                     ignoreCache_;
-   uint32_t                 numberOfThreads_;
+   uint32_t                 numberOfThreads_{0};
    std::vector<std::string> files_;
    std::vector<std::string> outOfDate_;
 
    bool GetFile (std::filesystem::path& result)
    {
-      std::lock_guard lock(filesMutex_);
-      if (current_ == files_.size()) return false;
+      const auto index = current_++;
+      if (index >= files_.size()) {
+         return false;
+      }
 
-      result = files_[current_];
-      ++current_;
+      result = std::move(files_[index]);
       return true;
    }
 
    bool Done ()
    {
-      std::lock_guard lock(filesMutex_);
       return current_ == files_.size();
    }
 
@@ -103,17 +99,16 @@ private:
       std::filesystem::path objdir(outdir_);
       std::filesystem::path file;
 
+      CppDepends dep;
       for (;;) {
          if (!GetFile(file)) break;
-         CppDepends dep(file);
-
          auto obj = objdir / file.filename();
          obj.replace_extension(objectFileExtension_);
 
          if (!std::filesystem::exists(obj)) AddOutOfDate(file.string());
          else if (!std::filesystem::file_size(obj)) AddOutOfDate(file.string());
-         else if (LastWriteTime(obj) < dep.MaxTime()) AddOutOfDate(file.string());
          else if (LastWriteTime(obj) < scriptTime_) AddOutOfDate(file.string());
+         else if (LastWriteTime(obj) < dep.Process(file)) AddOutOfDate(file.string());
       }
    }
 
