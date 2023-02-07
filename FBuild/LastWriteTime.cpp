@@ -82,18 +82,24 @@ class Cache {
       }
 
       return result;
-   }
+   }                   
 
    void UpdateCache (const std::filesystem::path& file, PersistentValue& stored) 
    {
       const auto ctime = QueryFileTime(file);
-      if (ctime > stored.ts) {
+      if (ctime != stored.ts) {
          auto hash = QueryFileHash(file);
          if (stored.hash != hash) {
             stored.hash = std::move(hash);
+            stored.ts = ctime;
+            persistentChanged_ = true;
          }
-         stored.ts = ctime;
-         persistentChanged_ = true;
+         else {
+            using namespace std::chrono;
+            const auto oldts = file_clock::from_utc(utc_clock::from_sys(system_clock::from_time_t(static_cast<time_t>(stored.ts))));
+            std::error_code nothrow;
+            std::filesystem::last_write_time(file, oldts, nothrow);
+         }
       }
    }
 
