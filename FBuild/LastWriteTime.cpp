@@ -96,7 +96,7 @@ class Cache {
          }
          else {
             using namespace std::chrono;
-            const auto oldts = file_clock::from_utc(utc_clock::from_sys(system_clock::from_time_t(static_cast<time_t>(stored.ts))));
+            const auto oldts = file_clock::time_point{file_clock::duration{std::chrono::seconds{stored.ts}}};
             std::error_code nothrow;
             std::filesystem::last_write_time(file, oldts, nothrow);
          }
@@ -167,6 +167,18 @@ class Cache {
       return std::filesystem::temp_directory_path() / "FBuild_TimestampCache_v1.txt";
    }
 
+   static uint64_t now() 
+   {
+      using namespace std::chrono;
+      static uint64_t now = duration_cast<seconds>(file_clock::now().time_since_epoch()).count();
+      return now;
+   }
+
+   static bool InvalidValueFromBuggyVersion(const PersistentStorageRecord& record)
+   {
+      return record.value.ts > now();
+   }
+
    static std::unordered_map<std::filesystem::path, PersistentValue> LoadCacheFile ()
    {
       std::unordered_map<std::filesystem::path, PersistentValue> result;
@@ -180,6 +192,9 @@ class Cache {
          while (stream >> record) {
             if (Skip(record.file.extension().string())) {
                continue;
+            }
+            if (InvalidValueFromBuggyVersion(record)) {
+               record.value.ts = now();
             }
             result.insert(std::make_pair(record.file, record.value));
          }
