@@ -8,4 +8,5 @@ ipch
 *.opensdf
 *.exe
 *.db
+/Duktape/vc140.pdb
 /FBuild/vc140.pdb
