@@ -118,7 +118,7 @@ std::string ActualCompilerVisualStudio::CommandLine ()
    
 
    if (debug) command += "-D_DEBUG ";
-   else command += "-DNDEBUG -D_USE_DETAILED_FUNCTION_NAME_IN_SOURCE_LOCATION=0 ";
+   else command += "-DNDEBUG ";
 
    for (auto&& define : compiler.Defines()) command += "-D" + define + " ";
 
