@@ -83,24 +83,15 @@ void ActualLinkerVisualStudio::Link ()
    for (auto&& f : linker.Files()) command += "\"" + f + "\" ";
 
    const char* env = std::getenv("FB_LINKER");
-   if (env) {
-      env = ToolChain::RemoveGuardCF(env);
-      command += std::string(env) + " ";
-   }
+   if (env) command += ToolChain::RemoveGuardCF(env) + " ";
 
    if (debug) {
       env = std::getenv("FB_LINKER_DEBUG");
-      if (env) {
-         env = ToolChain::RemoveGuardCF(env);
-         command += std::string(env) + " ";
-      }
+      if (env) command += ToolChain::RemoveGuardCF(env) + " ";
    }
    else {
       env = std::getenv("FB_LINKER_RELEASE");
-      if (env) {
-         env = ToolChain::RemoveGuardCF(env);
-         command += std::string(env) + " ";
-      }
+      if (env) command += ToolChain::RemoveGuardCF(env) + " ";
    }
 
    if (command.size() > 8000) {
