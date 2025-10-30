@@ -20,5 +20,6 @@ namespace ToolChain {
    std::string Platform ();
 
    std::string SetEnvBatchCall ();
+   const char* RemoveGuardCF (const char* env);
 }
 

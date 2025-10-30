@@ -139,4 +139,16 @@ namespace ToolChain {
       }
    }
 
+   const char* RemoveGuardCF (const char* env)
+   {
+      if (ToolChain::Platform() == "x86") {
+         std::string tmp = env;
+         auto found = tmp.find(" -guard:cf");
+         if (found != std::string::npos) {
+            tmp.erase(found, 10);
+            env = tmp.c_str();
+         }
+      }
+      return env;
+   }
 }

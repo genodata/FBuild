@@ -161,15 +161,24 @@ std::string ActualCompilerVisualStudio::CommandLine ()
 
 
    const char* env = std::getenv("FB_COMPILER");
-   if (env) command += std::string(env) + " ";
+   if (env) {
+      env = ToolChain::RemoveGuardCF(env);
+      command += std::string(env) + " ";
+   }
 
    if (debug) {
       env = std::getenv("FB_COMPILER_DEBUG");
-      if (env) command += std::string(env) + " ";
+      if (env) {
+         env = ToolChain::RemoveGuardCF(env);
+         command += std::string(env) + " ";
+      }
    }
    else {
       env = std::getenv("FB_COMPILER_RELEASE");
-      if (env) command += std::string(env) + " ";
+      if (env) {
+         env = ToolChain::RemoveGuardCF(env);
+         command += std::string(env) + " ";
+      }
    }
 
    return command;
